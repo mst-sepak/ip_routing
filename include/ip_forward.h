@@ -1,6 +1,8 @@
 #ifndef IP_FORWARD_H
 #define IP_FORWARD_H
 
+/* 宛先判定、自分宛/転送の分岐 */
+
 #include "packet_io.h"
 
 #include <unistd.h>

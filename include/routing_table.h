@@ -1,17 +1,19 @@
 #ifndef ROUTING_TABLE_H
 #define ROUTING_TABLE_H
 
+/* ルーティングテーブルとLPM検索 */
+
 #include <stdint.h>
 
-struct route {
+struct route_entry {
     uint32_t prefix;
     uint8_t prefix_len;
     uint32_t next_hop;
-    int oif;
+    char ifname[16];
 };
 
-int routing_table_init(char *cfg);
+void init_routing_table(char *cfg);
 
-int routing_table_lookup(uint32_t dst, struct route *out);
+int routing_table_lookup(uint32_t dst, struct route_entry *out);
 
 #endif

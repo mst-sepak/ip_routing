@@ -15,7 +15,7 @@ int main(void) {
     //int fd = packet_io_get_fd();
     //printf("socket fd is %d\n", fd);
 
-    routing_table_init("routes.conf");
+    init_routing_table("routes.conf");
 
     for (;;) {
         n = packet_io_recv(buf, sizeof(buf), &meta);
