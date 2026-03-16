@@ -1,6 +1,8 @@
 #ifndef PACKET_IO_H
 #define PACKET_IO_H
 
+/* RAWソケットでの受信・送信 */
+
 #include "routing_table.h"
 
 #include <net/if.h>
@@ -25,6 +27,6 @@ int packet_io_get_fd(void);
 
 ssize_t packet_io_recv(uint8_t *buf, size_t len, struct pkt_meta *meta);
 
-int pakcet_io_send(const uint8_t *buf, size_t len, const struct route *rt);
+int pakcet_io_send(const uint8_t *buf, size_t len, const struct route_entry *rt);
 
 #endif

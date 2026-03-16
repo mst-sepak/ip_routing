@@ -159,7 +159,7 @@ ssize_t packet_io_recv(uint8_t *buf, size_t len, struct pkt_meta *meta) {
     return 0;
 }
 
-int packet_io_send(const uint8_t *buf, size_t len, const struct route *rt) {
+int packet_io_send(const uint8_t *buf, size_t len, const struct route_entry *rt) {
     printf("Called packet_io_send");
     return 1;
 }
