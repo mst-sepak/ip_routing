@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <netinet/if_ether.h>
+#include <netinet/ip.h>
+#include <arpa/inet.h>
+
 
 int main(void) {
     uint8_t buf[2048];
@@ -12,6 +16,9 @@ int main(void) {
     ssize_t n;
 
     packet_io_init();
+    if (init_local_ipaddr(&g_local_ipv4) < 0) {
+        return 1;
+    }
     //int fd = packet_io_get_fd();
     //printf("socket fd is %d\n", fd);
 
