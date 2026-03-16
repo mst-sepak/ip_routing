@@ -136,25 +136,32 @@ ssize_t packet_io_recv(uint8_t *buf, size_t len, struct pkt_meta *meta) {
         return -1;
     }
 
-    if (sll.sll_ifindex != 1 || sll.sll_protocol != ETH_P_IP) {
-        // printf("ifindex = %d\n", sll.sll_ifindex);
-        // char if_name[IFNAMSIZ];
-        // if_indextoname(sll.sll_ifindex, if_name);
-        // printf("ifname = %s\n", if_name);
-        // printf("protocol = 0x%04x\n", ntohs(sll.sll_protocol));
+    // 受信インターフェースとL3プロトコルの確認
+    // printf("ifindex = %d\n", sll.sll_ifindex);
+    // char if_name[IFNAMSIZ];
+    // if_indextoname(sll.sll_ifindex, if_name);
+    // printf("ifname = %s\n", if_name);
+    // printf("protocol = 0x%04x\n", ntohs(sll.sll_protocol));
 
-        if (meta) {
+    if (meta) {
         meta->ifindex = 0;
-        }
-
-        struct iphdr *ip = (struct iphdr *)(buf + sizeof(struct ethhdr));
-        if (ip->protocol == IPPROTO_ICMP) {
-            printf("ICMP packet!\n");
-            return n;
-        }
-
-        return 0;
     }
+
+    int lo_ifindex = if_nametoindex("lo");
+    
+    if (sll.sll_ifindex == lo_ifindex) return 0;
+
+    struct iphdr *iph = (struct iphdr *)(buf + sizeof(struct ethhdr));
+    struct in_addr dst_addr;
+    dst_addr.s_addr = iph->daddr;
+
+    printf("dst ip = %s\n", inet_ntoa(dst_addr));
+    /*
+    if (iph->protocol == IPPROTO_ICMP) {
+        printf("ICMP packet!\n");
+        return n;
+    }
+    */
     
     return 0;
 }
