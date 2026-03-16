@@ -11,7 +11,10 @@ int main(void) {
     struct pkt_meta meta;
     ssize_t n;
 
+    struct local_ip_list g_local_ipv4;
+
     packet_io_init();
+    init_local_ipaddr(&g_local_ipv4);
     //int fd = packet_io_get_fd();
     //printf("socket fd is %d\n", fd);
 
