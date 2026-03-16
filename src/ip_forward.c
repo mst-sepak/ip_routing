@@ -3,10 +3,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ifaddrs.h>
-#include <netinet/in.h>
+#include <netinet/if_ether.h>
+#include <netinet/ip.h>
 #include <arpa/inet.h>
 
 #define MAX_IF 32
+
+struct local_ip_list g_local_ipv4;
 
 int init_local_ipaddr(struct local_ip_list *list)
 {
@@ -61,9 +64,31 @@ int init_local_ipaddr(struct local_ip_list *list)
     return 0;
 }
 
+int is_local_dst(struct in_addr dst)
+{
+    for (size_t i = 0; i < g_local_ipv4.count; i++) {
+        if (g_local_ipv4.addrs[i].s_addr == dst.s_addr) {
+            return 1;
+        }
+    }
+    return 0;
+}
 
 void ip_forward_handle_packet(uint8_t *buf, size_t len, struct pkt_meta *meta) {
     
-    printf("Called ip_forward_handle_packet\n");
+    //printf("Called ip_forward_handle_packet\n");
 
+    struct iphdr *iph = (struct iphdr *)(buf + sizeof(struct ethhdr));
+    struct in_addr dst_addr;
+    dst_addr.s_addr = iph->daddr;
+
+
+    char dst_str[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &dst_addr, dst_str, sizeof(dst_str));
+
+    if (is_local_dst(dst_addr)) {
+        printf("dst %s -> local interface\n", dst_str);
+    } else {
+        printf("dst %s -> not local\n", dst_str);
+    }
 }

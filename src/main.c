@@ -5,16 +5,20 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <netinet/if_ether.h>
+#include <netinet/ip.h>
+#include <arpa/inet.h>
+
 
 int main(void) {
     uint8_t buf[2048];
     struct pkt_meta meta;
     ssize_t n;
 
-    struct local_ip_list g_local_ipv4;
-
     packet_io_init();
-    init_local_ipaddr(&g_local_ipv4);
+    if (init_local_ipaddr(&g_local_ipv4) < 0) {
+        return 1;
+    }
     //int fd = packet_io_get_fd();
     //printf("socket fd is %d\n", fd);
 

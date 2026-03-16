@@ -13,6 +13,8 @@ struct local_ip_list {
     size_t count;
 };
 
+extern struct local_ip_list g_local_ipv4;
+
 int init_local_ipaddr(struct local_ip_list *list);
 
 void ip_forward_handle_packet(uint8_t *buf, size_t len, struct pkt_meta *meta);

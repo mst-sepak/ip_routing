@@ -155,9 +155,7 @@ ssize_t packet_io_recv(uint8_t *buf, size_t len, struct pkt_meta *meta) {
     // lo宛てのパケットははじく
     int lo_ifindex = if_nametoindex("lo");
     if (sll.sll_ifindex == lo_ifindex) return 0;
-
-    ip_forward_handle_packet(buf, n, meta);
-
+    
     // パケットの宛先IPアドレスを表示
     /*
     struct iphdr *iph = (struct iphdr *)(buf + sizeof(struct ethhdr));
@@ -166,7 +164,7 @@ ssize_t packet_io_recv(uint8_t *buf, size_t len, struct pkt_meta *meta) {
     // printf("dst ip = %s\n", inet_ntoa(dst_addr));
     */
 
-    return 0;
+    return n;
 }
 
 int packet_io_send(const uint8_t *buf, size_t len, const struct route_entry *rt) {
