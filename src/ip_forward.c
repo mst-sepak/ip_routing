@@ -1,4 +1,5 @@
 #include "ip_forward.h"
+#include "routing_table.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,11 +53,23 @@ int init_local_ipaddr(struct local_ip_list *list)
 
         if (ifa->ifa_addr->sa_family == AF_INET) {
             struct sockaddr_in *sa = (struct sockaddr_in *)ifa->ifa_addr;
+            struct sockaddr_in *netmask = (struct sockaddr_in *)ifa->ifa_netmask;
             list->addrs[list->count++] = sa->sin_addr;
 
-            char buf[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &sa->sin_addr, buf, sizeof(buf));
-            printf("local (up, non-lo) addr: %s (%s)\n", buf, ifa->ifa_name);           
+            uint32_t mask = netmask->sin_addr.s_addr;
+
+            // プレフィックス長計算
+            uint32_t mask_host = ntohl(mask);
+            uint8_t prefix_len = 0;
+            while (mask_host & 0x80000000u) {
+                prefix_len++;
+                mask_host <<= 1;
+            }
+            uint32_t prefix = sa->sin_addr.s_addr & mask;
+
+            char ip_addrs[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &sa->sin_addr, ip_addrs, sizeof(ip_addrs));
+            printf("local (up, non-lo) addr: %s/%d (%s)\n", ip_addrs, prefix_len, ifa->ifa_name);
         }        
     }
 
