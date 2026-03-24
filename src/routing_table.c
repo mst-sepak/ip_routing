@@ -1,8 +1,10 @@
 #include "routing_table.h"
+#include "ip_forward.h"
 
 #include <stdio.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <stdlib.h>
 
 static struct route_entry route_table[] = {
     {0, 0, 0, "ens33"},
@@ -11,6 +13,29 @@ static struct route_entry route_table[] = {
 };
 
 static const size_t route_table_size = sizeof(route_table) / sizeof(route_table[0]);
+
+struct route_table *route_table_create(void)
+{
+    struct route_table *rt = malloc(sizeof(struct route_table));
+    if (!rt) return NULL;
+
+    rt->num_used = 0;
+    memset(rt->entries, 0, sizeof(rt->entries));
+
+    return rt;
+}
+
+static void add_direct_route(struct route_table *rt)
+{
+    struct ifaddrs *ifaddr, *ifa;
+    size_t if_count = 0;
+
+    if (getifaddrs(&ifaddr) == -1) {
+        perror("getifaddrs");
+        return -1;
+    }
+
+}
 
 // 文字列のIPをuint32_t(network byte order)に変換するソルバ
 static uint32_t parse_ipv4(const char *s)
@@ -53,8 +78,10 @@ static void print_route_table(void)
     }
 }
 
-void init_routing_table(char *cfg) {
+void init_route_table(struct route_table *rt, char *cfg) {
     printf("Called init_routing_table\n");
+
+    add_direct_route(rt);
 
     route_table[0].prefix = parse_ipv4("0.0.0.0");
     route_table[0].prefix_len = 0;
@@ -69,4 +96,9 @@ void init_routing_table(char *cfg) {
     route_table[2].next_hop = parse_ipv4("192.168.79.1");
 
     print_route_table();
+}
+
+void route_table_handle_packet(struct route_table *rt, uint8_t *buf, size_t len, struct pkt_meta *meta)
+{
+    printf("Called route_table_handle_packet\n");
 }

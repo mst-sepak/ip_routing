@@ -23,10 +23,12 @@ struct tx_sock {
     unsigned int ifindex;
 };
 
-static int recv_fd = -1;
-static struct tx_sock *send_fd = NULL;
+struct tx_sock_list {
+    struct tx_sock sock[MAX_IF];
+    uint8_t num_used;
+};
 
-int init_rx_socket() {
+static int init_rx_socket() {
     int rx_fd;
 
     // 受信用RAWソケット作成
@@ -40,10 +42,13 @@ int init_rx_socket() {
     return rx_fd;
 }
 
-struct tx_sock *init_tx_socket() {
+static struct tx_sock_list *init_tx_socket() {
     
     struct ifaddrs *ifaddr, *ifa;
-    struct tx_sock *socks = NULL;
+    struct tx_sock_list *tx_socks = malloc(sizeof(struct tx_sock_list));
+    if (!tx_socks) return NULL;
+    tx_socks->num_used = 0;
+    memset(tx_socks->sock, 0, sizeof(tx_socks->sock));
     size_t if_count = 0;
 
     char names[MAX_IF][IFNAMSIZ];
@@ -83,45 +88,34 @@ struct tx_sock *init_tx_socket() {
         return NULL;
     }
 
-    socks = malloc(sizeof(struct tx_sock) * if_count);
-    if (!socks) {
-        freeifaddrs(ifaddr);
-        return NULL;
-    }
-
     // 実際のソケット作成
+    
     for (size_t i = 0; i < if_count; i++) {   
-        struct tx_sock *t = socks;
-        t->fd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
-        if (t->fd < 0) {
+        tx_socks->sock[i].fd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
+        if (tx_socks->sock[i].fd < 0) {
             perror("socket");
             freeifaddrs(ifaddr);
             return NULL;
         }
-        strncpy(t->ifname, names[i], IFNAMSIZ);
-        t->ifindex = indexes[i];
+        strncpy(tx_socks->sock[i].ifname, names[i], IFNAMSIZ);
+        tx_socks->sock[i].ifindex = indexes[i];
 
-        printf("send fd: %d, ifname: %s, ifindex: %d\n", t->fd, t->ifname, t->ifindex);
-
-        socks++;
+        tx_socks->num_used++;
+        
+        printf("send fd: %d, ifname: %s, ifindex: %d\n", tx_socks->sock[i].fd, tx_socks->sock[i].ifname, tx_socks->sock[i].ifindex);
     }    
 
-    return socks;
+    return tx_socks;
 }
 
-int packet_io_init(void) {
+void packet_io_init(int *rx_sock, struct tx_sock_list *tx_sock) {
 
-    recv_fd = init_rx_socket();
-    send_fd = init_tx_socket();
+    *rx_sock = init_rx_socket();
+    tx_sock = init_tx_socket();
 
-    return 0;
 }
 
-int packet_io_get_fd(void) {
-    return recv_fd;
-}
-
-ssize_t packet_io_recv(uint8_t *buf, size_t len, struct pkt_meta *meta) {
+ssize_t packet_io_recv(int recv_fd, uint8_t *buf, size_t len, struct pkt_meta *meta) {
     struct sockaddr_ll sll;
     socklen_t slen = sizeof(sll);
     ssize_t n;
