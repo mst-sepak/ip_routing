@@ -8,15 +8,14 @@
 #include <unistd.h>
 #include <stdint.h>
 
-struct local_ip_list {
-    struct in_addr *addrs;
-    size_t count;
-};
+struct local_ip_list;
 
 extern struct local_ip_list g_local_ipv4;
 
-int init_local_ipaddr(struct local_ip_list *list);
+struct local_ip_list *local_ip_list_create(void);
 
-void ip_forward_handle_packet(uint8_t *buf, size_t len, struct pkt_meta *meta);
+int init_local_ip_list(struct local_ip_list *list);
+
+int ip_forward_handle_packet(struct local_ip_list *list, uint8_t *buf, size_t len, struct pkt_meta *meta);
 
 #endif

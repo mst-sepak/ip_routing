@@ -20,12 +20,11 @@ struct pkt_meta
     uint64_t timestamp_ns;
 };
 
+struct tx_sock_list;
 
-int packet_io_init(void);
+void packet_io_init(int *rx_sock, struct tx_sock_list *tx_sock);
 
-int packet_io_get_fd(void);
-
-ssize_t packet_io_recv(uint8_t *buf, size_t len, struct pkt_meta *meta);
+ssize_t packet_io_recv(int recv_fd, uint8_t *buf, size_t len, struct pkt_meta *meta);
 
 int pakcet_io_send(const uint8_t *buf, size_t len, const struct route_entry *rt);
 

@@ -1,5 +1,5 @@
-#include "packet_io.h"
 #include "routing_table.h"
+#include "packet_io.h"
 #include "ip_forward.h"
 
 #include <stdio.h>
@@ -15,20 +15,42 @@ int main(void) {
     struct pkt_meta meta;
     ssize_t n;
 
-    packet_io_init();
+    // ローカルIFのIPアドレスリストの作成
+    struct local_ip_list *local_ip = local_ip_list_create();
+    init_local_ip_list(local_ip);
+
+    // ルーティングテーブルの作成
+    struct route_table *rt = route_table_create();
+    init_route_table(rt, "routes.conf");
+
+    // ソケットの作成
+    int rx_sock;
+    struct tx_sock_list *tx_sock = NULL;
+    packet_io_init(&rx_sock, tx_sock);
+    /*
     if (init_local_ipaddr(&g_local_ipv4) < 0) {
         return 1;
     }
+    */
     //int fd = packet_io_get_fd();
     //printf("socket fd is %d\n", fd);
 
-    init_routing_table("routes.conf");
-
+    int is_local = 0;
     for (;;) {
-        n = packet_io_recv(buf, sizeof(buf), &meta);
+        
+        // 受信用ソケットを使ってパケットを受信
+        n = packet_io_recv(rx_sock, buf, sizeof(buf), &meta);
         //printf("Received packet len: %ld\n", n);
         if (n <= 0) continue;
-        ip_forward_handle_packet(buf, (size_t)n, &meta);
+        
+        // パケットがローカルIF宛かを確認
+        is_local = ip_forward_handle_packet(local_ip, buf, (size_t)n, &meta);
+        if (is_local) continue;
+
+        // パケットの宛先IPがルーティングテーブルに存在するのか確認
+        route_table_handle_packet(rt, buf, (size_t)n, &meta);
+
+        // ルーティングテーブルで指定されているIFからの送信用ソケットを使ってパケットを送信（転送）
     }
     
     return 0;
