@@ -39,7 +39,7 @@ void add_route(struct route_table *rt, uint32_t prefix, uint8_t prefix_len, uint
     rt->entries[rt->num_used].prefix        = prefix;
     rt->entries[rt->num_used].prefix_len    = prefix_len;
     rt->entries[rt->num_used].next_hop      = next_hop;
-    strncpy(rt->entries[rt->num_used].ifname, ifname, sizeof(rt->entries[rt->num_used].ifname) - 1);
+    snprintf(rt->entries[rt->num_used].ifname, sizeof(rt->entries[rt->num_used].ifname) - 1, "%s", ifname);
     rt->entries[rt->num_used].ifname[sizeof(rt->entries[rt->num_used].ifname) - 1] = '\0';
     rt->num_used++;
 }
