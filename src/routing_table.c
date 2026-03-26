@@ -5,14 +5,23 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ifaddrs.h>
+#include <netinet/if_ether.h>
+#include <netinet/ip.h>
 
-static struct route_entry route_table[] = {
-    {0, 0, 0, "ens33"},
-    {0, 0, 0, "ens38"}, 
-    {0, 0, 0, "ens39"},
+#define ROUTE_MAX_ENTRIES 4096
+
+struct route_entry {
+    uint32_t prefix;
+    uint8_t prefix_len;
+    uint32_t next_hop;
+    char ifname[16];
 };
 
-static const size_t route_table_size = sizeof(route_table) / sizeof(route_table[0]);
+struct route_table {
+    struct route_entry entries[ROUTE_MAX_ENTRIES];
+    size_t num_used;    // 今入っているエントリー数
+};
 
 struct route_table *route_table_create(void)
 {
@@ -25,16 +34,52 @@ struct route_table *route_table_create(void)
     return rt;
 }
 
+void add_route(struct route_table *rt, uint32_t prefix, uint8_t prefix_len, uint32_t next_hop, const char* ifname)
+{
+    rt->entries[rt->num_used].prefix        = prefix;
+    rt->entries[rt->num_used].prefix_len    = prefix_len;
+    rt->entries[rt->num_used].next_hop      = next_hop;
+    strncpy(rt->entries[rt->num_used].ifname, ifname, sizeof(rt->entries[rt->num_used].ifname) - 1);
+    rt->entries[rt->num_used].ifname[sizeof(rt->entries[rt->num_used].ifname) - 1] = '\0';
+    rt->num_used++;
+}
+
 static void add_direct_route(struct route_table *rt)
 {
     struct ifaddrs *ifaddr, *ifa;
-    size_t if_count = 0;
 
     if (getifaddrs(&ifaddr) == -1) {
         perror("getifaddrs");
-        return -1;
+        return;
     }
 
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        
+        if (!ifa->ifa_addr) continue;
+
+        // loをスキップ
+        if (ifa->ifa_flags & IFF_LOOPBACK) continue;
+        // DOWNはスキップ
+        if (!(ifa->ifa_flags & IFF_UP)) continue;
+
+        // アドレスがIPv4であればアドレスをlistに追加
+        if (ifa->ifa_addr->sa_family == AF_INET) {
+            struct sockaddr_in *sa = (struct sockaddr_in *)ifa->ifa_addr;       // IFのIPアドレス
+            struct sockaddr_in *mask = (struct sockaddr_in *)ifa->ifa_netmask;  // IFのサブネットマスク
+
+            uint32_t prefix = sa->sin_addr.s_addr & mask->sin_addr.s_addr;      // IPアドレスとサブネットマスクのANDがプレフィックス
+
+            // プレフィックス長を計算（マスクをホストバイトオーダーにしたら先頭から1が並ぶので、その数を数える）
+            uint32_t mask_host = ntohl(mask->sin_addr.s_addr);
+            uint8_t prefix_len = 0;
+            while (mask_host & 0x80000000u) {
+                prefix_len++;
+                mask_host <<= 1;
+            }
+
+            add_route(rt, prefix, prefix_len, 0, ifa->ifa_name);
+        }
+    }
 }
 
 // 文字列のIPをuint32_t(network byte order)に変換するソルバ
@@ -48,7 +93,7 @@ static uint32_t parse_ipv4(const char *s)
     return addr.s_addr;
 }
 
-static void print_route_table(void)
+static void print_route_table(struct route_table *rt)
 {
     char prefix_str[INET_ADDRSTRLEN];
     char nexthop_str[INET_ADDRSTRLEN];
@@ -57,10 +102,10 @@ static void print_route_table(void)
     printf("Destination        Prefixlen  NextHop           Iface\n");
     printf("----------------------------------------------------------\n");
 
-    for (size_t i = 0; i < route_table_size; i++) {
+    for (size_t i = 0; i < rt->num_used; i++) {
         struct in_addr pfx, nh;
-        pfx.s_addr = route_table[i].prefix;
-        nh.s_addr = route_table[i].next_hop;
+        pfx.s_addr = rt->entries[i].prefix;
+        nh.s_addr = rt->entries[i].next_hop;
 
         // ネットワークバイトオーダーからホストバイトオーダーへ変換
         if (!inet_ntop(AF_INET, &pfx, prefix_str, sizeof(prefix_str))) {
@@ -72,9 +117,9 @@ static void print_route_table(void)
 
         printf("%-18s  /%-3u      %-16s %s\n",
                prefix_str,
-               route_table[i].prefix_len,
+               rt->entries[i].prefix_len,
                nexthop_str,
-               route_table[i].ifname);
+               rt->entries[i].ifname);
     }
 }
 
@@ -83,22 +128,97 @@ void init_route_table(struct route_table *rt, char *cfg) {
 
     add_direct_route(rt);
 
-    route_table[0].prefix = parse_ipv4("0.0.0.0");
-    route_table[0].prefix_len = 0;
-    route_table[0].next_hop = parse_ipv4("192.168.139.2");
+    uint32_t prefix;
+    uint8_t prefix_len;
+    uint32_t next_hop;
+    char ifname[16];
 
-    route_table[1].prefix = parse_ipv4("192.168.0.0");
-    route_table[1].prefix_len = 24;
-    route_table[1].next_hop = parse_ipv4("192.168.233.1");
+    prefix        = parse_ipv4("0.0.0.0");
+    prefix_len    = 0;
+    next_hop      = parse_ipv4("192.168.139.2");
+    strcpy(ifname, "ens33");
+    add_route(rt, prefix, prefix_len, next_hop, ifname);
 
-    route_table[2].prefix = parse_ipv4("10.0.0.0");
-    route_table[2].prefix_len = 16;
-    route_table[2].next_hop = parse_ipv4("192.168.79.1");
+    prefix        = parse_ipv4("192.168.0.0");
+    prefix_len    = 24;
+    next_hop      = parse_ipv4("192.168.233.1");
+    strcpy(ifname, "ens38");
+    add_route(rt, prefix, prefix_len, next_hop, ifname);
+    
+    prefix        = parse_ipv4("10.0.0.0");
+    prefix_len    = 16;
+    next_hop      = parse_ipv4("192.168.79.1");
+    strcpy(ifname, "ens39");
+    add_route(rt, prefix, prefix_len, next_hop, ifname);
+    
+    print_route_table(rt);
+}
 
-    print_route_table();
+static uint32_t prefixlen_to_mask(uint8_t prefix_len)
+{
+    if (prefix_len == 0) {
+        return 0u;
+    }
+
+    // /24や/16などのマスクをビット列に変換（ネットワークバイトオーダー）
+    uint32_t mask = htonl(0xFFFFFFFFu << (32 - prefix_len));
+    return mask;
+}
+
+static int prefix_match(uint32_t dst, const struct route_entry *re)
+{
+    uint32_t mask = prefixlen_to_mask(re->prefix_len);
+    return (dst & mask) == (re->prefix & mask);
+}
+
+static const struct route_entry *route_table_lookup(struct route_table *rt, uint32_t dst)
+{
+    const struct route_entry *best = NULL;
+    uint8_t best_plen = 0;
+
+    for (size_t i = 0; i < rt->num_used; i++) {
+        const struct route_entry *re = &rt->entries[i];
+
+        if(!prefix_match(dst, re)) {
+            continue;
+        }
+
+        if (re->prefix_len > best_plen) {
+            best = re;
+            best_plen = re->prefix_len;
+        }
+    }
+
+    return best;
+}
+
+static void print_route_entry(const struct route_entry *re)
+{
+    char prefix_str[INET_ADDRSTRLEN];
+    char nexthop_str[INET_ADDRSTRLEN];
+
+    inet_ntop(AF_INET, &re->prefix, prefix_str, sizeof(prefix_str));
+    inet_ntop(AF_INET, &re->next_hop, nexthop_str, sizeof(nexthop_str));
+
+    printf("prefix=%s/%u nexthop=%s if=%s\n", prefix_str, re->prefix_len, nexthop_str, re->ifname);
 }
 
 void route_table_handle_packet(struct route_table *rt, uint8_t *buf, size_t len, struct pkt_meta *meta)
 {
+
     printf("Called route_table_handle_packet\n");
+    
+    struct iphdr *iph = (struct iphdr *)(buf + sizeof(struct ethhdr));
+    struct in_addr dst_addr;
+    dst_addr.s_addr = iph->daddr;
+    char dst_str[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &dst_addr, dst_str, sizeof(dst_str));
+
+    const struct route_entry *re = route_table_lookup(rt, dst_addr.s_addr);
+    if (!re) {
+        printf("No route for %s\n", dst_str);
+    } else {
+        print_route_entry(re);
+    }
+
 }

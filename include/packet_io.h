@@ -26,6 +26,6 @@ void packet_io_init(int *rx_sock, struct tx_sock_list *tx_sock);
 
 ssize_t packet_io_recv(int recv_fd, uint8_t *buf, size_t len, struct pkt_meta *meta);
 
-int pakcet_io_send(const uint8_t *buf, size_t len, const struct route_entry *rt);
+int pakcet_io_send(const uint8_t *buf, size_t len);
 
 #endif

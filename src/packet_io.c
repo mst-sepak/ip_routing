@@ -77,7 +77,7 @@ static struct tx_sock_list *init_tx_socket() {
 
         // 現在のIFと過去の全てのIFを比較して被らなかったら新しいIFとして登録
         if (if_count < MAX_IF) {
-            strncpy(names[if_count], ifa->ifa_name, IFNAMSIZ);
+            snprintf(names[if_count], sizeof(names[if_count]), "%s", ifa->ifa_name);
             indexes[if_count] = if_nametoindex(ifa->ifa_name);
             if_count++;
         }
@@ -97,7 +97,7 @@ static struct tx_sock_list *init_tx_socket() {
             freeifaddrs(ifaddr);
             return NULL;
         }
-        strncpy(tx_socks->sock[i].ifname, names[i], IFNAMSIZ);
+        snprintf(tx_socks->sock[i].ifname, IFNAMSIZ, "%s", names[i]);
         tx_socks->sock[i].ifindex = indexes[i];
 
         tx_socks->num_used++;
@@ -161,7 +161,7 @@ ssize_t packet_io_recv(int recv_fd, uint8_t *buf, size_t len, struct pkt_meta *m
     return n;
 }
 
-int packet_io_send(const uint8_t *buf, size_t len, const struct route_entry *rt) {
+int packet_io_send(const uint8_t *buf, size_t len) {
     printf("Called packet_io_send");
     return 1;
 }
