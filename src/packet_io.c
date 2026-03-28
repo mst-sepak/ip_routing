@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
+#include <sys/socket.h>
 #include <netpacket/packet.h>
 #include <net/ethernet.h>
 #include <net/if.h>
@@ -48,6 +49,7 @@ static struct tx_sock_list *init_tx_socket() {
     struct tx_sock_list *tx_socks = malloc(sizeof(struct tx_sock_list));
     if (!tx_socks) return NULL;
     tx_socks->num_used = 0;
+    printf("tx_socks->num_used: %d\n", tx_socks->num_used);
     memset(tx_socks->sock, 0, sizeof(tx_socks->sock));
     size_t if_count = 0;
 
@@ -101,21 +103,26 @@ static struct tx_sock_list *init_tx_socket() {
         tx_socks->sock[i].ifindex = indexes[i];
 
         tx_socks->num_used++;
-        
-        printf("send fd: %d, ifname: %s, ifindex: %d\n", tx_socks->sock[i].fd, tx_socks->sock[i].ifname, tx_socks->sock[i].ifindex);
+
+        // ソケットへのインターフェースの指定
+        if(setsockopt(tx_socks->sock[i].fd, SOL_SOCKET, SO_BINDTODEVICE, tx_socks->sock[i].ifname, strlen(tx_socks->sock[i].ifname)+1) < 0) {
+            perror("setsockpt(SO_BINDTODEVICE)");            
+        }
+
+        printf("send fd: %d, ifname: %s, ifindex: %d, num_used: %d\n", tx_socks->sock[i].fd, tx_socks->sock[i].ifname, tx_socks->sock[i].ifindex, tx_socks->num_used);
     }    
 
     return tx_socks;
 }
 
-void packet_io_init(int *rx_sock, struct tx_sock_list *tx_sock) {
+void packet_io_init(int *rx_sock, struct tx_sock_list **tx_sock) {
 
     *rx_sock = init_rx_socket();
-    tx_sock = init_tx_socket();
+    *tx_sock = init_tx_socket();
 
 }
 
-ssize_t packet_io_recv(int recv_fd, uint8_t *buf, size_t len, struct pkt_meta *meta) {
+ssize_t packet_io_recv(int recv_fd, uint8_t *buf, size_t len) {
     struct sockaddr_ll sll;
     socklen_t slen = sizeof(sll);
     ssize_t n;
@@ -131,37 +138,42 @@ ssize_t packet_io_recv(int recv_fd, uint8_t *buf, size_t len, struct pkt_meta *m
         return -1;
     }
 
-    // 受信インターフェースとL3プロトコルの確認
-    // printf("ifindex = %d\n", sll.sll_ifindex);
-    // char if_name[IFNAMSIZ];
-    // if_indextoname(sll.sll_ifindex, if_name);
-    // printf("ifname = %s\n", if_name);
-    // printf("protocol = 0x%04x\n", ntohs(sll.sll_protocol));
-
-    if (meta) {
-        meta->ifindex = sll.sll_ifindex;
-        if (!if_indextoname(sll.sll_ifindex, meta->ifname)) {
-            perror("if_indextoname");
-            return -1;
-        }
-    }
-
     // lo宛てのパケットははじく
     int lo_ifindex = if_nametoindex("lo");
     if (sll.sll_ifindex == lo_ifindex) return 0;
-    
-    // パケットの宛先IPアドレスを表示
-    /*
-    struct iphdr *iph = (struct iphdr *)(buf + sizeof(struct ethhdr));
-    struct in_addr dst_addr;
-    dst_addr.s_addr = iph->daddr;
-    // printf("dst ip = %s\n", inet_ntoa(dst_addr));
-    */
 
     return n;
 }
 
-int packet_io_send(const uint8_t *buf, size_t len) {
-    printf("Called packet_io_send");
+int packet_io_send(struct tx_sock_list *tx_sock, const uint8_t *buf, size_t len, struct pkt_meta *meta) {
+
+    struct tx_sock *sock_entry = NULL;
+
+    // metaに入っているインターフェース名にバインドされているソケットを探す
+    for (int i = 0; i < tx_sock->num_used; i++) {
+        sock_entry = &tx_sock->sock[i];
+        if (strcmp(sock_entry->ifname, meta->ifname) == 0) {
+            break;
+        }
+    }
+    printf("Output socket is %d\n", sock_entry->fd);
+
+    // L2フレームからイーサヘッダだけ除いたものを送りたい
+    const uint8_t *ip_pkt = buf + sizeof(struct ethhdr);
+    size_t ip_len = len - sizeof(struct ethhdr);
+
+    struct sockaddr_in dst = {0};
+    dst.sin_family = AF_INET;
+    dst.sin_addr.s_addr = meta->next_hop;
+
+    ssize_t ret = sendto(sock_entry->fd, ip_pkt, ip_len, 0, (struct sockaddr *)&dst, sizeof(dst));
+
+    if (ret == -1) {
+        perror("sendto");
+    }
+    else if ((size_t)ret != ip_len) {
+        printf("一部だけ遅れました\n");
+    }
+
     return 1;
 }
