@@ -16,6 +16,6 @@ struct local_ip_list *local_ip_list_create(void);
 
 int init_local_ip_list(struct local_ip_list *list);
 
-int ip_forward_handle_packet(struct local_ip_list *list, uint8_t *buf, size_t len, struct pkt_meta *meta);
+int ip_forward_handle_packet(struct local_ip_list *list, uint8_t *buf);
 
 #endif

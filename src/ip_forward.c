@@ -90,7 +90,7 @@ int is_local_dst(struct local_ip_list *list, struct in_addr dst)
 }
 
 // ローカルなら1, ローカルでないなら0
-int ip_forward_handle_packet(struct local_ip_list *list, uint8_t *buf, size_t len, struct pkt_meta *meta) {
+int ip_forward_handle_packet(struct local_ip_list *list, uint8_t *buf) {
     
     struct iphdr *iph = (struct iphdr *)(buf + sizeof(struct ethhdr));
     struct in_addr dst_addr;

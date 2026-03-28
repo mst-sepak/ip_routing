@@ -192,18 +192,23 @@ static const struct route_entry *route_table_lookup(struct route_table *rt, uint
     return best;
 }
 
-static void print_route_entry(const struct route_entry *re)
+static void print_route_entry(const struct route_entry *re, uint32_t dst_addr)
 {
     char prefix_str[INET_ADDRSTRLEN];
     char nexthop_str[INET_ADDRSTRLEN];
 
     inet_ntop(AF_INET, &re->prefix, prefix_str, sizeof(prefix_str));
-    inet_ntop(AF_INET, &re->next_hop, nexthop_str, sizeof(nexthop_str));
+    if (re->next_hop != 0) {
+        inet_ntop(AF_INET, &re->next_hop, nexthop_str, sizeof(nexthop_str));
+    }
+    else {
+        inet_ntop(AF_INET, &dst_addr, nexthop_str, sizeof(nexthop_str));
+    }
 
     printf("prefix=%s/%u nexthop=%s if=%s\n", prefix_str, re->prefix_len, nexthop_str, re->ifname);
 }
 
-void route_table_handle_packet(struct route_table *rt, uint8_t *buf, size_t len, struct pkt_meta *meta)
+void route_table_handle_packet(struct route_table *rt, uint8_t *buf, struct pkt_meta *meta)
 {
 
     printf("Called route_table_handle_packet\n");
@@ -215,10 +220,18 @@ void route_table_handle_packet(struct route_table *rt, uint8_t *buf, size_t len,
     inet_ntop(AF_INET, &dst_addr, dst_str, sizeof(dst_str));
 
     const struct route_entry *re = route_table_lookup(rt, dst_addr.s_addr);
-    if (!re) {
+    if (!re) {  // エントリが見つからなかった場合
         printf("No route for %s\n", dst_str);
-    } else {
-        print_route_entry(re);
+    }
+    else {    // エントリが見つかった場合
+        print_route_entry(re, dst_addr.s_addr);
+        if (re->next_hop != 0) {    // 間接ルートの場合、ルーティングエントリのネクストホップを返す
+            meta->next_hop = re->next_hop;
+        } 
+        else {      // 直接ルートの場合、パケットの宛先アドレスをネクストホップとして返す
+            meta->next_hop = dst_addr.s_addr;
+        }
+        snprintf(meta->ifname, sizeof(meta->ifname), "%s", re->ifname);
     }
 
 }

@@ -1,6 +1,7 @@
 #include "routing_table.h"
 #include "packet_io.h"
 #include "ip_forward.h"
+#include "util.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -26,31 +27,30 @@ int main(void) {
     // ソケットの作成
     int rx_sock;
     struct tx_sock_list *tx_sock = NULL;
-    packet_io_init(&rx_sock, tx_sock);
-    /*
-    if (init_local_ipaddr(&g_local_ipv4) < 0) {
-        return 1;
-    }
-    */
-    //int fd = packet_io_get_fd();
-    //printf("socket fd is %d\n", fd);
+    packet_io_init(&rx_sock, &tx_sock);
+    if(!tx_sock) return 1;
 
     int is_local = 0;
     for (;;) {
         
         // 受信用ソケットを使ってパケットを受信
-        n = packet_io_recv(rx_sock, buf, sizeof(buf), &meta);
-        //printf("Received packet len: %ld\n", n);
+        n = packet_io_recv(rx_sock, buf, sizeof(buf));
         if (n <= 0) continue;
         
         // パケットがローカルIF宛かを確認
-        is_local = ip_forward_handle_packet(local_ip, buf, (size_t)n, &meta);
+        is_local = ip_forward_handle_packet(local_ip, buf);
         if (is_local) continue;
 
         // パケットの宛先IPがルーティングテーブルに存在するのか確認
-        route_table_handle_packet(rt, buf, (size_t)n, &meta);
+        route_table_handle_packet(rt, buf, &meta);
+        
+        char next_hop_str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &meta.next_hop, next_hop_str, sizeof(next_hop_str));
+        printf("Next hop is %s\n", next_hop_str);
+        printf("Output interface is %s\n", meta.ifname);
 
         // ルーティングテーブルで指定されているIFからの送信用ソケットを使ってパケットを送信（転送）
+        packet_io_send(tx_sock, buf, (size_t)n, &meta);
     }
     
     return 0;
